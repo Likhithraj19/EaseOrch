@@ -1,18 +1,19 @@
 import { PrismaClient } from "@prisma/client";
 import { env } from "./config/env";
 import { createApp } from "./http/create-app";
+import { createRedisConnection } from "./queue/redis";
+import { createWorkflowQueue } from "./queue/workflow.queue";
 import { logger } from "./shared/logger";
 
 if (require.main === module) {
   const prisma = new PrismaClient();
+  const queue = createWorkflowQueue({
+    connection: createRedisConnection(env.REDIS_URL)
+  });
   const app = createApp({
     prisma,
     env,
-    queue: {
-      enqueueNormalizedEvent: async (job) => {
-        logger.info("Normalized event queued", job);
-      }
-    }
+    queue
   });
 
   app.listen(env.PORT, () => {

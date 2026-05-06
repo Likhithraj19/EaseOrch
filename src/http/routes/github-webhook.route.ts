@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import express, { Request, Response } from "express";
+import { normalizeGitHubWebhookEvent } from "../../events/github-normalizer";
 import { GitHubPullRequestPayload } from "../../github/github-webhook.types";
 import { verifyGitHubSignature } from "../../github/github-signature";
 
@@ -46,40 +47,6 @@ type CreateGitHubWebhookRouterOptions = {
 
 function isUniqueConstraintError(error: unknown): error is { code: string } {
   return typeof error === "object" && error !== null && "code" in error && (error as { code: string }).code === "P2002";
-}
-
-function extractMediaLinks(body?: string | null): string[] {
-  if (!body) {
-    return [];
-  }
-
-  const matches = body.match(/https?:\/\/\S+/g);
-  return matches ?? [];
-}
-
-function normalizePullRequestEvent(payload: GitHubPullRequestPayload, providerEventRef: string) {
-  if (!payload.pull_request || !payload.repository || !payload.action) {
-    return null;
-  }
-
-  if (payload.action !== "opened" && !(payload.action === "closed" && payload.pull_request.merged)) {
-    return null;
-  }
-
-  return {
-    providerEventRef,
-    eventType: payload.action === "opened" ? "PR_OPENED" : "PR_MERGED",
-    repoOwner: payload.repository.owner.login,
-    repoName: payload.repository.name,
-    repoFullName: payload.repository.full_name,
-    prNumber: payload.pull_request.number,
-    prTitle: payload.pull_request.title,
-    prAuthor: payload.pull_request.user.login,
-    prBranch: payload.pull_request.head.ref,
-    prUrl: payload.pull_request.html_url,
-    mergedAt: payload.pull_request.merged_at ? new Date(payload.pull_request.merged_at) : null,
-    mediaLinks: extractMediaLinks(payload.pull_request.body)
-  } as const;
 }
 
 export function createGitHubWebhookRouter({
@@ -144,7 +111,11 @@ export function createGitHubWebhookHandler({
       throw error;
     }
 
-    const normalizedEvent = normalizePullRequestEvent(payload, deliveryId);
+    const normalizedEvent = normalizeGitHubWebhookEvent({
+      providerEventRef: deliveryId,
+      eventName,
+      payload
+    });
 
     if (!normalizedEvent) {
       return res.status(202).json({ status: "ignored" });
