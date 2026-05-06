@@ -1,0 +1,150 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum NormalizedEventType {
+  PR_OPENED
+  PR_MERGED
+}
+
+enum ExecutionStatus {
+  pending
+  running
+  succeeded
+  completed_with_warning
+  failed
+  skipped_duplicate
+  skipped_no_matching_workflow
+}
+
+enum AttemptStatus {
+  running
+  succeeded
+  failed
+}
+
+enum ActionType {
+  JIRA_COMMENT
+  JIRA_TRANSITION
+  SLACK_NOTIFY
+}
+
+enum ActionStatus {
+  succeeded
+  failed
+  skipped
+}
+
+enum LogLevel {
+  info
+  warn
+  error
+}
+
+model WorkflowConfig {
+  id                    String              @id @default(cuid())
+  name                  String
+  enabledEvents         Json
+  jiraKeySources        Json
+  jiraTransitionOnMerge String?
+  slackEnabled          Boolean             @default(true)
+  mediaExtractionConfig Json
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+  executions            WorkflowExecution[]
+}
+
+model WebhookEvent {
+  id               String            @id @default(cuid())
+  provider         String
+  deliveryId       String
+  eventName        String
+  eventAction      String?
+  rawPayload       Json
+  receivedAt       DateTime          @default(now())
+  createdAt        DateTime          @default(now())
+  normalizedEvents NormalizedEvent[]
+
+  @@unique([provider, deliveryId])
+}
+
+model NormalizedEvent {
+  id               String              @id @default(cuid())
+  webhookEventId   String
+  providerEventRef String
+  eventType        NormalizedEventType
+  repoOwner        String
+  repoName         String
+  repoFullName     String
+  prNumber         Int
+  prTitle          String
+  prAuthor         String
+  prBranch         String
+  prUrl            String
+  mergedAt         DateTime?
+  mediaLinks       Json
+  createdAt        DateTime            @default(now())
+  webhookEvent     WebhookEvent        @relation(fields: [webhookEventId], references: [id])
+  executions       WorkflowExecution[]
+
+  @@index([eventType])
+  @@index([repoOwner, repoName, prNumber])
+}
+
+model WorkflowExecution {
+  id                String          @id @default(cuid())
+  workflowConfigId  String
+  normalizedEventId String
+  status            ExecutionStatus @default(pending)
+  startedAt         DateTime?
+  finishedAt        DateTime?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  workflowConfig    WorkflowConfig  @relation(fields: [workflowConfigId], references: [id])
+  normalizedEvent   NormalizedEvent @relation(fields: [normalizedEventId], references: [id])
+  attempts          WorkflowAttempt[]
+  logs              ExecutionLog[]
+
+  @@index([status])
+  @@index([normalizedEventId])
+}
+
+model WorkflowAttempt {
+  id                  String            @id @default(cuid())
+  workflowExecutionId String
+  attemptNumber       Int
+  status              AttemptStatus
+  errorSummary        String?
+  startedAt           DateTime?
+  finishedAt          DateTime?
+  createdAt           DateTime          @default(now())
+  workflowExecution   WorkflowExecution @relation(fields: [workflowExecutionId], references: [id])
+  actionResults       ActionResult[]
+}
+
+model ActionResult {
+  id                String          @id @default(cuid())
+  workflowAttemptId String
+  actionType        ActionType
+  status            ActionStatus
+  externalId        String?
+  errorMessage      String?
+  createdAt         DateTime        @default(now())
+  workflowAttempt   WorkflowAttempt @relation(fields: [workflowAttemptId], references: [id])
+}
+
+model ExecutionLog {
+  id                  String            @id @default(cuid())
+  workflowExecutionId String
+  level               LogLevel
+  step                String
+  message             String
+  metadata            Json
+  createdAt           DateTime          @default(now())
+  workflowExecution   WorkflowExecution @relation(fields: [workflowExecutionId], references: [id])
+}
