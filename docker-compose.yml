@@ -1,0 +1,71 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: easeorch
+      POSTGRES_PASSWORD: easeorch
+      POSTGRES_DB: easeorch
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U easeorch -d easeorch"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  migrate:
+    build: .
+    image: easeorch:latest
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://easeorch:easeorch@postgres:5432/easeorch?schema=public
+      RUN_SEED: "true"
+    command: >
+      sh -c "npx prisma migrate deploy &&
+             if [ \"$$RUN_SEED\" = \"true\" ]; then node dist/prisma/seed.js; fi"
+
+  api:
+    image: easeorch:latest
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://easeorch:easeorch@postgres:5432/easeorch?schema=public
+      REDIS_URL: redis://redis:6379
+      GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:-replace-me}
+      PORT: "3000"
+      JIRA_ADAPTER_MODE: mock
+      SLACK_ADAPTER_MODE: mock
+    ports:
+      - "3000:3000"
+    command: ["node", "dist/src/index.js"]
+
+  worker:
+    image: easeorch:latest
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://easeorch:easeorch@postgres:5432/easeorch?schema=public
+      REDIS_URL: redis://redis:6379
+      GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:-replace-me}
+      JIRA_ADAPTER_MODE: mock
+      SLACK_ADAPTER_MODE: mock
+    command: ["node", "dist/src/worker.js"]
+
+volumes:
+  postgres-data:
