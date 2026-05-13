@@ -1,77 +1,60 @@
 # EaseOrch
 
-EaseOrch is a local-first backend for automating developer workflows across GitHub, Jira, and Slack.
+A backend service that automates developer workflows across GitHub, Jira, and Slack. When a pull request opens or merges, EaseOrch comments on the linked Jira issue, transitions it, and posts a Slack notification — driven by a signed GitHub webhook.
 
-Current implementation covers the first backend slice:
+## Stack
 
-- TypeScript + Express API scaffold
-- Prisma schema, migration, and seed
-- GitHub webhook signature verification
-- delivery ID deduplication
-- raw webhook persistence
-- normalized PR event creation
-- queue handoff by `normalizedEventId`
+Node.js 20, TypeScript, Express, Prisma, PostgreSQL, Redis, BullMQ. Multi-stage Docker build for deployment.
 
-## Project Layout
+## How it works
 
-- `src/` application code
-- `src/http/` webhook app and route handlers
-- `src/github/` GitHub-specific helpers and tests
-- `src/config/` env validation
-- `src/db/` Prisma client
-- `prisma/` schema, migrations, and seed
-- `docs/plans/` design and implementation docs
+1. GitHub sends a webhook to `POST /webhooks/github`.
+2. The API verifies `X-Hub-Signature-256`, deduplicates by delivery ID, persists the raw payload, and creates a normalized event.
+3. A BullMQ job is enqueued referencing the event by ID.
+4. The worker resolves the workflow plan, runs Jira + Slack actions through adapter clients, and persists execution, attempts, and per-action results.
+5. Retryable failures retry with exponential backoff (3 attempts). Terminal failures finalize the execution row to `failed`.
 
-## Local Development
+## Quick start (local)
 
-Run PostgreSQL and Redis locally on your machine. Docker is optional for later deployment checks, not required for day-to-day work.
-
-Create `.env` from `.env.example` and update values for your local setup:
-
-```env
-DATABASE_URL="postgresql://easeorch:easeorch@localhost:5432/easeorch?schema=public"
-REDIS_URL="redis://localhost:6379"
-GITHUB_WEBHOOK_SECRET="replace-me"
-PORT="3000"
-JIRA_ADAPTER_MODE="mock"
-SLACK_ADAPTER_MODE="mock"
-```
-
-## Commands
+Requires Node 20, PostgreSQL, and Redis on the host.
 
 ```bash
 npm install
+cp .env.example .env       # then edit values
 npm run prisma:generate
 npx prisma migrate dev --name init
 npx prisma db seed
+
+npm run dev:api            # http://localhost:3000
+npm run dev:worker         # workflow worker
 npm test
-npm run build
-npm run dev:api
-npm run dev:worker
 ```
 
-What they do:
+## Quick start (Docker)
 
-- `npm test` runs the Jest test suite
-- `npm run build` compiles TypeScript to `dist/`
-- `npm run dev:api` starts the API in watch mode
-- `npm run dev:worker` starts the worker entrypoint in watch mode
+```bash
+docker compose up          # postgres → redis → migrate → api + worker
+docker compose down        # tear down, keep DB volume
+docker compose down -v     # tear down + wipe DB
+```
 
-## Webhook Endpoint
+## Webhook endpoint
 
-GitHub webhook endpoint:
-
-```text
+```
 POST /webhooks/github
 ```
 
-Current supported normalized events:
+Supported events: `pull_request.opened` and `pull_request.closed` (merged). Other actions are accepted but ignored after raw persistence.
 
-- PR opened
-- PR merged
+## Adapter modes
 
-## Notes
+`JIRA_ADAPTER_MODE` and `SLACK_ADAPTER_MODE` accept `mock` or `real`.
 
-- Daily development should use local Postgres and Redis.
-- Route tests are handler-level and do not require opening a local HTTP port.
-- Real Jira and Slack adapters are not implemented yet; current wiring assumes mock mode.
+- `mock` — in-process mock that returns success. Used for local development and the test suite.
+- `real` — not implemented yet. Will be wired to live Jira REST and Slack Web API clients.
+
+## Status
+
+Implemented: webhook ingest, event normalization, workflow planning, BullMQ worker with retry semantics, mock Jira/Slack adapters, persisted executions, Dockerized deployment.
+
+Pending: real Jira and Slack HTTP adapters.
