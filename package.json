@@ -9,6 +9,7 @@
     "build": "tsc -p tsconfig.json",
     "test": "jest --passWithNoTests",
     "test:watch": "jest --watch",
+    "test:e2e": "jest --testPathPattern=src/e2e --testPathIgnorePatterns=/node_modules/ --runInBand",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "prisma db seed"
