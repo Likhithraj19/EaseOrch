@@ -18,7 +18,15 @@ export function startWorker(): Worker<WorkflowJobPayload> {
   const connection = new IORedis(env.REDIS_URL, { maxRetriesPerRequest: null });
   const adapters = createAdapters({
     jiraMode: env.JIRA_ADAPTER_MODE,
-    slackMode: env.SLACK_ADAPTER_MODE
+    slackMode: env.SLACK_ADAPTER_MODE,
+    credentials: {
+      jira: {
+        baseUrl: env.JIRA_BASE_URL,
+        email: env.JIRA_EMAIL,
+        apiToken: env.JIRA_API_TOKEN
+      },
+      slack: { botToken: env.SLACK_BOT_TOKEN }
+    }
   });
   const executorPrisma = prisma as unknown as ExecutorPrisma;
 
@@ -30,6 +38,7 @@ export function startWorker(): Worker<WorkflowJobPayload> {
           runWorkflowExecution({
             prisma: executorPrisma,
             normalizedEventId,
+            slackChannel: env.SLACK_DEFAULT_CHANNEL ?? "#default",
             adapters
           })
       }),
