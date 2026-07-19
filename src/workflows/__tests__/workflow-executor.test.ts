@@ -302,6 +302,60 @@ describe("runWorkflowExecution", () => {
     expect(spy).toHaveBeenCalledWith("#default", expect.any(String));
   });
 
+  test("PR opened notifications name the 'opened' action with a green marker", async () => {
+    const { prisma } = makeRecorder({
+      normalizedEvent: { ...baseEvent, eventType: "PR_OPENED" },
+      workflowConfig: baseConfig
+    });
+
+    const jira = new MockJiraAdapter({ mode: "always-success" });
+    const slack = new MockSlackAdapter({ mode: "always-success" });
+    const slackSpy = jest.spyOn(slack, "sendMessage");
+    const jiraSpy = jest.spyOn(jira, "addComment");
+
+    await runWorkflowExecution({
+      prisma,
+      normalizedEventId: "norm-1",
+      adapters: { jira, slack }
+    });
+
+    expect(slackSpy).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.stringContaining("🟢 PR opened by alice")
+    );
+    expect(jiraSpy).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.stringContaining("PR opened by alice")
+    );
+  });
+
+  test("PR merged notifications name the 'merged' action with a purple marker", async () => {
+    const { prisma } = makeRecorder({
+      normalizedEvent: { ...baseEvent, eventType: "PR_MERGED" },
+      workflowConfig: baseConfig
+    });
+
+    const jira = new MockJiraAdapter({ mode: "always-success" });
+    const slack = new MockSlackAdapter({ mode: "always-success" });
+    const slackSpy = jest.spyOn(slack, "sendMessage");
+    const jiraSpy = jest.spyOn(jira, "addComment");
+
+    await runWorkflowExecution({
+      prisma,
+      normalizedEventId: "norm-1",
+      adapters: { jira, slack }
+    });
+
+    expect(slackSpy).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.stringContaining("🟣 PR merged by alice")
+    );
+    expect(jiraSpy).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.stringContaining("PR merged by alice")
+    );
+  });
+
   test("missing normalized event throws NonRetryableError", async () => {
     const { prisma } = makeRecorder({
       normalizedEvent: null,

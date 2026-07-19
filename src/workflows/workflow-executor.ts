@@ -240,7 +240,13 @@ export async function runWorkflowExecution(input: RunExecutionInput): Promise<Ru
 type BuildHandlersInput = {
   prisma: ExecutorPrisma;
   attemptId: string;
-  event: { prTitle: string; prAuthor: string; prUrl: string; mediaLinks: unknown };
+  event: {
+    eventType: string;
+    prTitle: string;
+    prAuthor: string;
+    prUrl: string;
+    mediaLinks: unknown;
+  };
   config: { jiraTransitionOnMerge: string | null };
   jiraIssueKey: string | null;
   slackChannel: string;
@@ -331,9 +337,17 @@ function makeHandler(input: MakeHandlerInput): WorkflowActionHandler {
   };
 }
 
+function prActionVerb(eventType: string): string {
+  return eventType === "PR_MERGED" ? "merged" : "opened";
+}
+
+function prActionEmoji(eventType: string): string {
+  return eventType === "PR_MERGED" ? "🟣" : "🟢";
+}
+
 function renderJiraCommentBody(event: BuildHandlersInput["event"]): string {
   return [
-    `PR by ${event.prAuthor}`,
+    `PR ${prActionVerb(event.eventType)} by ${event.prAuthor}`,
     event.prTitle,
     event.prUrl,
     Array.isArray(event.mediaLinks) && event.mediaLinks.length > 0
@@ -345,5 +359,5 @@ function renderJiraCommentBody(event: BuildHandlersInput["event"]): string {
 }
 
 function renderSlackMessage(event: BuildHandlersInput["event"]): string {
-  return `${event.prAuthor}: ${event.prTitle} ${event.prUrl}`;
+  return `${prActionEmoji(event.eventType)} PR ${prActionVerb(event.eventType)} by ${event.prAuthor}: ${event.prTitle} ${event.prUrl}`;
 }
