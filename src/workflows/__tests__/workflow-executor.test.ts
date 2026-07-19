@@ -259,6 +259,49 @@ describe("runWorkflowExecution", () => {
     expect(slack?.status).toBe("succeeded");
   });
 
+  test("passes the configured slackChannel to the Slack adapter", async () => {
+    const { prisma } = makeRecorder({
+      normalizedEvent: baseEvent,
+      workflowConfig: baseConfig
+    });
+
+    const slack = new MockSlackAdapter({ mode: "always-success" });
+    const spy = jest.spyOn(slack, "sendMessage");
+
+    await runWorkflowExecution({
+      prisma,
+      normalizedEventId: "norm-1",
+      slackChannel: "#releases",
+      adapters: {
+        jira: new MockJiraAdapter({ mode: "always-success" }),
+        slack
+      }
+    });
+
+    expect(spy).toHaveBeenCalledWith("#releases", expect.any(String));
+  });
+
+  test("defaults the Slack channel to #default when none is provided", async () => {
+    const { prisma } = makeRecorder({
+      normalizedEvent: baseEvent,
+      workflowConfig: baseConfig
+    });
+
+    const slack = new MockSlackAdapter({ mode: "always-success" });
+    const spy = jest.spyOn(slack, "sendMessage");
+
+    await runWorkflowExecution({
+      prisma,
+      normalizedEventId: "norm-1",
+      adapters: {
+        jira: new MockJiraAdapter({ mode: "always-success" }),
+        slack
+      }
+    });
+
+    expect(spy).toHaveBeenCalledWith("#default", expect.any(String));
+  });
+
   test("missing normalized event throws NonRetryableError", async () => {
     const { prisma } = makeRecorder({
       normalizedEvent: null,

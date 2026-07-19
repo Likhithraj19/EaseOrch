@@ -48,13 +48,18 @@ Supported events: `pull_request.opened` and `pull_request.closed` (merged). Othe
 
 ## Adapter modes
 
-`JIRA_ADAPTER_MODE` and `SLACK_ADAPTER_MODE` accept `mock` or `real`.
+`JIRA_ADAPTER_MODE` and `SLACK_ADAPTER_MODE` accept `mock` or `real` (set independently).
 
 - `mock` — in-process mock that returns success. Used for local development and the test suite.
-- `real` — not implemented yet. Will be wired to live Jira REST and Slack Web API clients.
+- `real` — live HTTP clients: Jira Cloud REST API v3 (Basic auth) and the Slack Web API (`chat.postMessage`). HTTP/transport errors map to the existing retryable/non-retryable classes so the BullMQ retry machinery works unchanged.
+
+When a mode is `real`, its credentials are required (validated fail-fast at startup):
+
+- Jira: `JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN`
+- Slack: `SLACK_BOT_TOKEN`
+
+`SLACK_DEFAULT_CHANNEL` sets the channel for Slack notifications (defaults to `#default`).
 
 ## Status
 
-Implemented: webhook ingest, event normalization, workflow planning, BullMQ worker with retry semantics, mock Jira/Slack adapters, persisted executions, Dockerized deployment.
-
-Pending: real Jira and Slack HTTP adapters.
+Implemented: webhook ingest, event normalization, workflow planning, BullMQ worker with retry semantics, mock and real Jira/Slack adapters, persisted executions, Dockerized deployment.

@@ -44,6 +44,7 @@ export type ExecutorAdapters = {
 export type RunExecutionInput = {
   prisma: ExecutorPrisma;
   normalizedEventId: string;
+  slackChannel?: string;
   adapters: ExecutorAdapters;
 };
 
@@ -117,6 +118,7 @@ export async function runWorkflowExecution(input: RunExecutionInput): Promise<Ru
     event,
     config,
     jiraIssueKey,
+    slackChannel: input.slackChannel ?? "#default",
     adapters: input.adapters
   });
 
@@ -241,6 +243,7 @@ type BuildHandlersInput = {
   event: { prTitle: string; prAuthor: string; prUrl: string; mediaLinks: unknown };
   config: { jiraTransitionOnMerge: string | null };
   jiraIssueKey: string | null;
+  slackChannel: string;
   adapters: ExecutorAdapters;
 };
 
@@ -270,7 +273,7 @@ function buildHandlers(input: BuildHandlersInput): Record<WorkflowActionType, Wo
       required: true,
       run: async () => {
         const message = renderSlackMessage(input.event);
-        return input.adapters.slack.sendMessage("#default", message);
+        return input.adapters.slack.sendMessage(input.slackChannel, message);
       }
     })
   };
