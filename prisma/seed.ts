@@ -10,7 +10,7 @@ async function main() {
     update: {
       enabledEvents: ["PR_OPENED", "PR_MERGED"],
       jiraKeySources: ["branch", "title"],
-      jiraTransitionOnMerge: null,
+      jiraTransitionOnMerge: "QA",
       slackEnabled: true,
       mediaExtractionConfig: {
         enabled: true,
@@ -22,7 +22,7 @@ async function main() {
       name: "GitHub PR to Jira and Slack",
       enabledEvents: ["PR_OPENED", "PR_MERGED"],
       jiraKeySources: ["branch", "title"],
-      jiraTransitionOnMerge: null,
+      jiraTransitionOnMerge: "QA",
       slackEnabled: true,
       mediaExtractionConfig: {
         enabled: true,
