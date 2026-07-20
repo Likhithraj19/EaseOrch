@@ -18,6 +18,14 @@ describe("extractMediaLinks", () => {
     ]);
   });
 
+  test("does not capture the closing quote of an HTML-embedded video URL", () => {
+    expect(
+      extractMediaLinks(
+        '<video src="https://github.com/user-attachments/assets/340e0277-4fcc.mp4"></video>'
+      )
+    ).toEqual(["https://github.com/user-attachments/assets/340e0277-4fcc.mp4"]);
+  });
+
   test("returns an empty array when no media links exist", () => {
     expect(extractMediaLinks("No evidence attached yet")).toEqual([]);
   });

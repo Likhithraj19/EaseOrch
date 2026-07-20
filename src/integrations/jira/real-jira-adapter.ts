@@ -11,6 +11,48 @@ export type RealJiraConfig = {
 
 const DEFAULT_TIMEOUT_MS = 10_000;
 
+const URL_REGEX = /(https?:\/\/[^\s]+)/g;
+
+type AdfNode = Record<string, unknown>;
+
+// Split a single line into ADF inline nodes, wrapping any URL in a link mark
+// so it renders as a clickable link in the Jira comment.
+function lineToInlineNodes(line: string): AdfNode[] {
+  if (line === "") return [];
+  const nodes: AdfNode[] = [];
+  let lastIndex = 0;
+  for (const match of line.matchAll(URL_REGEX)) {
+    const url = match[0];
+    const start = match.index ?? 0;
+    if (start > lastIndex) {
+      nodes.push({ type: "text", text: line.slice(lastIndex, start) });
+    }
+    nodes.push({
+      type: "text",
+      text: url,
+      marks: [{ type: "link", attrs: { href: url } }]
+    });
+    lastIndex = start + url.length;
+  }
+  if (lastIndex < line.length) {
+    nodes.push({ type: "text", text: line.slice(lastIndex) });
+  }
+  return nodes;
+}
+
+// Convert a plain-text comment body into an ADF doc: one paragraph per line,
+// with URLs auto-linked.
+function bodyToAdf(body: string): AdfNode {
+  return {
+    type: "doc",
+    version: 1,
+    content: body.split("\n").map((line) => ({
+      type: "paragraph",
+      content: lineToInlineNodes(line)
+    }))
+  };
+}
+
 export class RealJiraAdapter implements JiraAdapter {
   private readonly baseUrl: string;
   private readonly authHeader: string;
@@ -47,13 +89,7 @@ export class RealJiraAdapter implements JiraAdapter {
       {
         method: "POST",
         body: JSON.stringify({
-          body: {
-            type: "doc",
-            version: 1,
-            content: [
-              { type: "paragraph", content: [{ type: "text", text: body }] }
-            ]
-          }
+          body: bodyToAdf(body)
         })
       }
     );

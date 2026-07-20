@@ -41,6 +41,46 @@ describe("RealJiraAdapter", () => {
       expect(body.body.content[0].content[0].text).toBe("hello world");
     });
 
+    it("auto-links URLs and splits lines into paragraphs", async () => {
+      fetchMock().mockResolvedValueOnce(
+        new Response(JSON.stringify({ id: "10102" }), { status: 201 })
+      );
+
+      await adapter.addComment(
+        "PROJ-123",
+        "PR merged by alice\nhttps://example.com/pr/2\nMedia: https://cdn.example.com/a.png"
+      );
+
+      const body = JSON.parse(fetchMock().mock.calls[0][1].body);
+      expect(body.body.content).toHaveLength(3);
+
+      // Line 1: plain text, no link mark.
+      expect(body.body.content[0].content[0]).toEqual({
+        type: "text",
+        text: "PR merged by alice"
+      });
+
+      // Line 2: a bare URL becomes a single linked text node.
+      expect(body.body.content[1].content[0]).toEqual({
+        type: "text",
+        text: "https://example.com/pr/2",
+        marks: [{ type: "link", attrs: { href: "https://example.com/pr/2" } }]
+      });
+
+      // Line 3: leading label stays plain, trailing URL is linked.
+      expect(body.body.content[2].content[0]).toEqual({
+        type: "text",
+        text: "Media: "
+      });
+      expect(body.body.content[2].content[1]).toEqual({
+        type: "text",
+        text: "https://cdn.example.com/a.png",
+        marks: [
+          { type: "link", attrs: { href: "https://cdn.example.com/a.png" } }
+        ]
+      });
+    });
+
     it("maps 429 to RetryableError", async () => {
       fetchMock().mockResolvedValueOnce(new Response("rate limited", { status: 429 }));
       await expect(adapter.addComment("PROJ-1", "x")).rejects.toBeInstanceOf(
